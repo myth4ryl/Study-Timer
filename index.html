@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simple Study Timer</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      background: #0f0f0f;
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+      color: #e0e0e0;
+    }
+    .card {
+      background: #1a1a1a;
+      border-radius: 24px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+      max-width: 400px;
+      width: 100%;
+      padding: 30px 20px;
+      text-align: center;
+      border: 1px solid #2a2a2a;
+    }
+    h1 {
+      font-size: 1.8em;
+      font-weight: 600;
+      color: #f0f0f0;
+      margin-bottom: 20px;
+    }
+    /* Timer Ring (SVG) */
+    .timer-ring {
+      position: relative;
+      width: 220px;
+      height: 220px;
+      margin: 0 auto 20px;
+    }
+    .timer-ring svg {
+      transform: rotate(-90deg);
+    }
+    .bg-circle {
+      fill: none;
+      stroke: #2c2c2c;
+      stroke-width: 12;
+    }
+    .progress-circle {
+      fill: none;
+      stroke: #3b82f6;
+      stroke-width: 12;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 0.2s linear;
+    }
+    .time-display {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 3.5em;
+      font-weight: 700;
+      color: #f0f0f0;
+      letter-spacing: 1px;
+    }
+    .status {
+      font-size: 1.1em;
+      color: #b0b0b0;
+      margin: 10px 0 20px;
+      min-height: 1.5em;
+    }
+    .buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    .btn {
+      padding: 12px 20px;
+      border-radius: 50px;
+      font-weight: 600;
+      font-size: 0.9em;
+      border: none;
+      cursor: pointer;
+      background: #2a2a2a;
+      color: #d0d0d0;
+      transition: 0.15s;
+      flex: 1 1 auto;
+      min-width: 100px;
+    }
+    .btn:hover { background: #3a3a3a; }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: #3b82f6; color: white; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-danger { background: #ef4444; color: white; display: none; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-danger.show { display: block; width: 100%; margin-top: 10px; }
+    /* Log Panel */
+    .log-panel {
+      text-align: left;
+      border-top: 1px solid #2a2a2a;
+      margin-top: 15px;
+      padding-top: 15px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .log-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 600;
+      color: #c0c0c0;
+      margin-bottom: 8px;
+    }
+    .log-reset-btn {
+      background: none;
+      border: 1px solid #555;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.8em;
+      color: #c0c0c0;
+      cursor: pointer;
+    }
+    .log-list {
+      list-style: none;
+      padding: 0;
+    }
+    .log-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      border-bottom: 1px solid #2a2a2a;
+      font-size: 0.9em;
+      color: #d0d0d0;
+    }
+    .delete-btn {
+      background: none;
+      border: none;
+      color: #ef4444;
+      font-size: 1.2em;
+      cursor: pointer;
+      padding: 0 4px;
+    }
+    #audioPrompt {
+      font-size: 0.8em;
+      color: #f59e0b;
+      margin-top: 10px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+<div class="card">
+  <h1>📚 Study Timer</h1>
+
+  <div class="timer-ring">
+    <svg width="220" height="220" viewBox="0 0 220 220">
+      <circle class="bg-circle" cx="110" cy="110" r="100"/>
+      <circle class="progress-circle" id="progressCircle" cx="110" cy="110" r="100"
+              stroke-dasharray="628.3" stroke-dashoffset="0"/>
+    </svg>
+    <div class="time-display" id="timerDisplay">50:00</div>
+  </div>
+
+  <div class="status" id="statusText">Ready to study</div>
+
+  <div class="buttons">
+    <button class="btn btn-primary" onclick="startStudy()">▶ Start 50</button>
+    <button class="btn" id="pauseBtn" onclick="togglePause()">⏸ Pause</button>
+    <button class="btn" onclick="startBreak()">☕ Break 8</button>
+    <button class="btn" onclick="resetAll()">↺ Reset</button>
+  </div>
+
+  <button class="btn btn-danger" id="stopAlarmBtn" onclick="stopAlarm()">🔇 Stop Alarm</button>
+  <div id="audioPrompt">🔊 Tap anywhere to enable sound</div>
+
+  <div class="log-panel">
+    <div class="log-header">
+      <span>✅ Focus Log (study blocks)</span>
+      <button class="log-reset-btn" onclick="resetLog()">Clear All</button>
+    </div>
+    <ul class="log-list" id="logList"></ul>
+  </div>
+</div>
+
+<script>
+  // ===== AUDIO =====
+  const audioPrompt = document.getElementById('audioPrompt');
+  let audioCtx = null;
+  let audioUnlocked = false;
+
+  function initAudio() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().then(() => {
+        audioUnlocked = true;
+        audioPrompt.style.display = 'none';
+      });
+    } else {
+      audioUnlocked = true;
+      audioPrompt.style.display = 'none';
+    }
+  }
+
+  function playChime() {
+    if (!audioCtx || audioCtx.state !== 'running') {
+      initAudio();
+      if (!audioUnlocked) return;
+    }
+    const now = audioCtx.currentTime;
+    const notes = [587.33, 783.99, 987.77];
+    notes.forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + i * 0.12);
+      gain.gain.setValueAtTime(0.3, now + i * 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.28);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now + i * 0.12);
+      osc.stop(now + i * 0.12 + 0.28);
+    });
+  }
+
+  let alarmInterval = null;
+  function startAlarm() {
+    initAudio();
+    if (!audioUnlocked) {
+      audioPrompt.style.display = 'block';
+      alert('Tap the screen first to enable sound, then press Stop Alarm.');
+      return;
+    }
+    if (alarmInterval) return;
+    playChime();
+    alarmInterval = setInterval(playChime, 1000);
+    document.getElementById('stopAlarmBtn').classList.add('show');
+    document.getElementById('statusText').textContent = '⏰ Time up! Stop alarm.';
+  }
+
+  function stopAlarm() {
+    if (alarmInterval) { clearInterval(alarmInterval); alarmInterval = null; }
+    document.getElementById('stopAlarmBtn').classList.remove('show');
+    // If study block just finished, log it
+    if (studyJustCompleted) {
+      addLogEntry();
+      studyJustCompleted = false;
+    }
+    // Reset UI
+    totalSeconds = STUDY_SECONDS;
+    initialSeconds = STUDY_SECONDS;
+    updateTimerDisplay();
+    document.getElementById('statusText').textContent = 'Ready to study';
+    document.getElementById('pauseBtn').style.display = 'inline-block';
+    document.getElementById('pauseBtn').textContent = '⏸ Pause';
+    isPaused = false;
+  }
+
+  // ===== TIMER =====
+  const STUDY_SECONDS = 50 * 60;
+  const BREAK_SECONDS = 8 * 60;
+  let totalSeconds = STUDY_SECONDS;
+  let initialSeconds = STUDY_SECONDS;
+  let isPaused = false;
+  let countdownInterval = null;
+  let currentType = 'study';
+  let studyJustCompleted = false;
+
+  const timerDisplay = document.getElementById('timerDisplay');
+  const progressCircle = document.getElementById('progressCircle');
+  const circumference = 2 * Math.PI * 100; // 628.3
+
+  function updateTimerDisplay() {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    timerDisplay.textContent = String(mins).padStart(2,'0') + ':' + String(secs).padStart(2,'0');
+    const offset = circumference - (totalSeconds / initialSeconds) * circumference;
+    progressCircle.style.strokeDashoffset = offset;
+  }
+
+  function timerStop() {
+    if (countdownInterval) clearInterval(countdownInterval);
+  }
+
+  function togglePause() {
+    if (!countdownInterval) return;
+    isPaused = !isPaused;
+    const btn = document.getElementById('pauseBtn');
+    if (isPaused) {
+      btn.textContent = '▶ Resume';
+      document.getElementById('statusText').textContent = '⏸ Paused';
+    } else {
+      btn.textContent = '⏸ Pause';
+      document.getElementById('statusText').textContent = currentType === 'study' ? '📖 Studying...' : '☕ Break...';
+    }
+  }
+
+  function startCountdown(seconds, type) {
+    stopAlarm();
+    timerStop();
+    initAudio();
+    totalSeconds = seconds;
+    initialSeconds = seconds;
+    isPaused = false;
+    currentType = type;
+    document.getElementById('pauseBtn').style.display = 'inline-block';
+    document.getElementById('pauseBtn').textContent = '⏸ Pause';
+    document.getElementById('statusText').textContent = type === 'study' ? '📖 Studying...' : '☕ Break...';
+    countdownInterval = setInterval(() => {
+      if (isPaused) return;
+      if (totalSeconds <= 1) {
+        timerStop();
+        totalSeconds = 0;
+        updateTimerDisplay();
+        if (type === 'study') {
+          studyJustCompleted = true;
+        }
+        if (Notification.permission === "granted") {
+          new Notification(type==='study'?'Study block done':'Break over', {
+            body: type==='study'?'50 minutes finished. Take a break.':'8-min break done. Start studying!',
+          });
+        }
+        startAlarm();
+        document.getElementById('pauseBtn').style.display = 'none';
+        alert(type==='study'?'✅ Study block finished!':'☕ Break complete.');
+      } else {
+        totalSeconds--;
+        updateTimerDisplay();
+      }
+    }, 1000);
+  }
+
+  function startStudy() { startCountdown(STUDY_SECONDS, 'study'); }
+  function startBreak() { startCountdown(BREAK_SECONDS, 'break'); }
+  function resetAll() {
+    stopAlarm();
+    timerStop();
+    totalSeconds = STUDY_SECONDS;
+    initialSeconds = STUDY_SECONDS;
+    isPaused = false;
+    studyJustCompleted = false;
+    updateTimerDisplay();
+    document.getElementById('statusText').textContent = 'Ready to study';
+    document.getElementById('pauseBtn').style.display = 'inline-block';
+    document.getElementById('pauseBtn').textContent = '⏸ Pause';
+  }
+
+  // ===== LOCAL STORAGE LOG =====
+  function getLog() {
+    const stored = localStorage.getItem('simpleStudyLog');
+    return stored ? JSON.parse(stored) : [];
+  }
+  function saveLog(logArr) {
+    localStorage.setItem('simpleStudyLog', JSON.stringify(logArr));
+  }
+  function renderLog() {
+    const list = document.getElementById('logList');
+    const log = getLog();
+    list.innerHTML = '';
+    log.forEach((entry, i) => {
+      const li = document.createElement('li');
+      li.className = 'log-item';
+      li.innerHTML = `<span>${entry.label} – ${entry.datetime}</span>
+                      <button class="delete-btn" data-index="${i}">🗑️</button>`;
+      list.appendChild(li);
+    });
+    document.querySelectorAll('.delete-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const idx = e.target.getAttribute('data-index');
+        deleteLogEntry(idx);
+      });
+    });
+  }
+  function addLogEntry() {
+    const log = getLog();
+    const now = new Date();
+    const datetime = now.toLocaleString();
+    log.push({ label: `S-${log.length + 1}`, datetime });
+    saveLog(log);
+    renderLog();
+  }
+  function deleteLogEntry(index) {
+    const log = getLog();
+    log.splice(index, 1);
+    log.forEach((entry, i) => { entry.label = `S-${i+1}`; });
+    saveLog(log);
+    renderLog();
+  }
+  function resetLog() {
+    if (confirm('Delete entire log?')) {
+      localStorage.removeItem('simpleStudyLog');
+      renderLog();
+    }
+  }
+  renderLog();
+
+  // Enable audio & notifications on first tap
+  document.body.addEventListener('click', () => {
+    initAudio();
+    if (Notification.permission !== "granted") Notification.requestPermission();
+  }, { once: true });
+
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      if (!audioCtx || audioCtx.state === 'suspended') {
+        audioPrompt.style.display = 'block';
+      }
+    }, 1000);
+  });
+</script>
+</body>
+</html>
